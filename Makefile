@@ -18,6 +18,9 @@ SETTINGS_FILE = hw/settings.qsf
 
 REFCLK_FILE   = src/network/refclk.sv
 
+RAM_INI_FILE   = ecp_ram_ini.txt
+RAM_INI_DIR    = qnigma-rtl/
+RAM_MODULE_DIR = qnigma-rtl/src/math/
 # Hardware sources for Intel FPGA
 SRC_HW = $(SRC) $(SRC_V) $(SETTINGS_FILE) $(TOP_FILE)
 
@@ -64,7 +67,8 @@ STAMP = echo done >
 $(REFCLK_FILE):
 	@printf "localparam REFCLK_HZ = %d;" $(REFCLK_HZ) > $(REFCLK_FILE)
 
-$(PROJECT).map.rpt: map.chg $(SOURCE_FILES) $(REFCLK_FILE)
+$(PROJECT).map.rpt: map.chg $(SOURCE_FILES) $(REFCLK_FILE) $(RAM_INI_DIR)$(RAM_INI_FILE) 
+	-cat $(RAM_INI_DIR)$(RAM_INI_FILE) >> $(RAM_MODULE_DIR)$(RAM_INI_FILE)
 	$(QUARTUS_MAP) $(MAP_ARGS) $(PROJECT)
 	$(STAMP) fit.chg
 
