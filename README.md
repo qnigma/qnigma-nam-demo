@@ -1,49 +1,7 @@
 # qnigma-hw-c10lp-ek
-This is a TCP/IP and Modular Multiplication Unit demo for a Cyclone 10 LP Evaluation Kit.
+This is a TCP/IP and Modular Multiplication Unit demo for a [Intel Cyclone 10 LP Evaluation Kit](https://www.intel.com/content/www/us/en/products/details/fpga/development-kits/cyclone/10-lp-evaluation-kit.html).
 ## What it does?
-The repo allows to quickly generate FPGA firmware bitstream built based on [qnigma-rtl](https://github.com/qnigma/qnigma-rtl.git). Once loaded to the [Intel Cyclone 10 LP Evaluation Kit](https://www.intel.com/content/www/us/en/products/details/fpga/development-kits/cyclone/10-lp-evaluation-kit.html), the bitsteam is a proof-of-concept of a network-attached multiplier (NAM) modulo curve25519 prime (2^255-19) The networking part together with modular arithmetic unit are key modules needed for a hardware SSH implementation. 
-
-## How to operate 
-Using the NAM multiplier requires setting up an IPv6-enabled TCP server. In the example scenario, TCP server is running on a remote VPS. Prior running the TCP server and NAM, a DNS AAAA entry has been set up to associate a custom hostname with the VPS Global IPv6 address. In this example, FPGA does not know the IPv6 address of the target server, but only it's hostname. Once set up, make sure that the server is responsive and DNS has updated the entries by pinging it.
-
-User can access the CLI of the remote VPS to start the server:
-```
-$ ncat -l -p 2023 -6
-```
-Once FPGA is connected via TCP, (see LED description below), enter x and y values as follows:
-
-First operand:
-```
-x0000000000000000000000000000000000000000000000000000000000000002
-```
-
-Second operand:
-```
-y3ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff6
-```
-
-Run the multiplication by typing `m`, after which FPGA performs the modular multiplication and returns a 256-bit result. In this case, result is the prime itself minus 1:
-
-```
-7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffc
-```
-
-### Under the hood
-The detailed sequence of events is as follows:
-
-1. FPGA boots
-2. ICMP logic runs SLAAC to assign itself a link-local IPv6 address, including Duplicate Address Detection. Default IP is generated using EUI-64;
-3. Device joins the relevant multicast group and reports it with MLDv2 packet;
-4. FPGA requests router information and assigns DNS server IPv6 address from Router Advertisements. Assign default address if router does not provide any. Processes prefix information option and assigns itself a global IPv6 address;
-5. Logic attempts to connect to a host via raw TCP. Hostname resolution is performed using DNS servers from previous step;
-6. After successfull connection, the FPGA acts as a network-attached calculator.
-
-While connected, logic will perform necessary operations:
-1. Periodically send Keepalives
-2. Maintain ICMPv6 functionality while connected
-3. If connection failed, periodically attempt to reconnect
-
-Note: The demonstrated features set is related to network operation: IPv6, ICMPv6, TCP, DNS. This example **does not include encryption**.
+The repo allows to quickly generate FPGA firmware bitstream built based on [qnigma-rtl](https://github.com/qnigma/qnigma-rtl.git). This is a proof-of-concept design a TCP/IP network-attached multiplier (NAM) modulo curve25519 prime (2^255-19). Networking together with modular arithmetic unit are key modules that compose a hardware SSH implementation. Documentation on main RTL can be found in the project [wiki](https://github.com/qnigma/qnigma-nam-demo/wiki). **Under Development**
 
 ## Quick Start
 
@@ -124,6 +82,49 @@ Instantiates qnigma, RGMII adapted and clock module. Implements simple connectio
 Intel Quartus Project settings, including pin assignments and additional files.
 
 ## Details
+
+## How to operate
+Using the NAM multiplier requires setting up an IPv6-enabled TCP server. In the example scenario, TCP server is running on a remote VPS. Prior running the TCP server and NAM, a DNS AAAA entry has been set up to associate a custom hostname with the VPS Global IPv6 address. In this example, FPGA does not know the IPv6 address of the target server, but only it's hostname. Once set up, make sure that the server is responsive and DNS has updated the entries by pinging it.
+
+User can access the CLI of the remote VPS to start the server:
+```
+$ ncat -l -p 2023 -6
+```
+Once FPGA is connected via TCP, (see LED description below), enter x and y values as follows:
+
+First operand:
+```
+x0000000000000000000000000000000000000000000000000000000000000002
+```
+
+Second operand:
+```
+y3ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff6
+```
+
+Run the multiplication by typing `m`, after which FPGA performs the modular multiplication and returns a 256-bit result. In this case, result is the prime itself minus 1:
+
+```
+7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffc
+```
+
+### Under the hood
+Detailed sequence of events is as follows:
+
+1. FPGA boots
+2. ICMP logic runs SLAAC to assign itself a link-local IPv6 address, including Duplicate Address Detection. Default IP is generated using EUI-64;
+3. Device joins the relevant multicast group and reports it with MLDv2 packet;
+4. FPGA requests router information and assigns DNS server IPv6 address from Router Advertisements. Assign default address if router does not provide any. Processes prefix information option and assigns itself a global IPv6 address;
+5. Logic attempts to connect to a host via raw TCP. Hostname resolution is performed using DNS servers from previous step;
+6. After successfull connection, the FPGA acts as a network-attached calculator.
+
+While connected, logic will perform necessary operations:
+1. Periodically send Keepalives
+2. Maintain ICMPv6 functionality while connected
+3. If connection failed, periodically attempt to reconnect
+
+Note: The demonstrated features set is related to network operation: IPv6, ICMPv6, TCP, DNS. This example **does not include encryption**.
+
 ### Timing
 
 ### Receive Timing
