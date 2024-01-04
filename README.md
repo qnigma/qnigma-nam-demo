@@ -53,10 +53,36 @@ Target hardware is Intel Cyclone 10 LP. Latest Intel Quartus Lite version is rec
 ### 2. Install make
 Make allows efficient control over the project via cli
 
-### 3. Compile the project
-Run `make all`. This will build the Intel Quartus project and compile it .sof programming file will be produced at the end of compilation process.
+### 3. Clone the repository
+Run 
+```
+$ git clone git@github.com:qnigma/qnigma-nam-demo.git --recurse-submodules
+```
+
+### 3. Simulating
+Go to the main RTL submodule:
+
+```
+$ cd qnigma-rtl
+```
+
+Run:
+```
+$ make build-docker # to build Docker image. This might take a while...
+$ make tb-nw # simulate network stack
+$ make tb-alu # simulate ALU
+```
+
+Making `tb-alu` will also generate `ecp_ram_ini.txt` that is necessary for compilation with Quartus in the next step.
+
+### 3. Building
+Compile the project from main `qnigma-nam-demo` folder by running:
+```
+make all
+```
+Upon successful creation and compilation of the project, .sof programming file is produced.
 - To program FPGA (volatile) run `make program`
-- To program fLash, overwriting previous firmware, run `make program-jic` 
+- To program flash, overwriting previous firmware, run `make program-jic` 
 
 ### 4. Connect the board to an IPv6-enabled router
 Make sure it is a gigabit connection so is the Ethernet cable. **10Mbps or 100Mbps are currently not supported**.
