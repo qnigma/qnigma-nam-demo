@@ -1,0 +1,3 @@
+[submodule "qnigma-rtl"]
+	path = qnigma-rtl
+	url = git@github.com:qnigma/qnigma-rtl.git
