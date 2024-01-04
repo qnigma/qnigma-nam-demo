@@ -1,0 +1,497 @@
+module top 
+  import
+    qnigma_math_pkg::*,
+    qnigma_pkg::*;
+(
+	// Ethernet Cyclone 10 LP development kit
+  input  logic       rgmii_rx_clk,
+  input  logic       rgmii_rx_ctl,
+  input  logic [3:0] rgmii_rx_dat,
+
+  output logic       rgmii_gtx_clk,
+  output logic       rgmii_tx_ctl, 
+  output logic [3:0] rgmii_tx_dat, 
+
+  output logic       mdc,
+  output logic       mdio,
+
+  input  logic       reset_n,
+  // Ethernet connections
+  output logic [3:0] led,
+  input  logic       gen_clk_125m,
+  input  logic       gen_clk_100m,
+  input  logic       gen_clk_50m
+);
+
+
+  parameter [15:0] TCP_LOCAL_PORT  = 1337;
+  parameter [15:0] TCP_REMOTE_PORT = 2023;
+
+  logic arst;
+  assign arst = !reset_n;
+  
+  logic [7:0] phy_rx_dat;
+  logic       phy_rx_val;
+  logic       phy_rx_err;
+  logic       phy_rx_clk;
+  
+  logic [7:0] phy_tx_dat;
+  logic       phy_tx_val;
+  logic       phy_tx_err;
+  logic       phy_tx_clk;
+  
+  logic [7:0] gmii_rx_dat, gmii_tx_dat;
+  logic       gmii_rx_val, gmii_tx_val;
+  logic       gmii_rx_err, gmii_tx_err;
+  
+  logic clk_125m;
+
+  // assign clk_125m = gen_clk_125m;
+
+  logic [15:0]  udp_len;
+  logic [15:0]  udp_loc_port;   
+  logic [15:0]  udp_rem_port_rx;
+  logic [15:0]  udp_rem_port;
+  logic [15:0]  con_port;
+  logic [7:0]   tcp_dat_in;
+  logic         tcp_val_in;
+  logic         tcp_cts_in;
+  logic         tcp_snd_in;
+  logic [7:0]   tcp_dat_out;
+  logic         tcp_val_out;
+  logic [15:0]  tcp_rem_port;
+  logic         tcp_connect;
+  logic [15:0]  tcp_loc_port;
+  logic         tcp_listen;
+  logic         connected;
+  logic         ready;
+  logic         error;
+  
+  logic         dhcp_lease;
+  logic         dhcp_timeout;
+  logic [11:0] ctr_tx;
+
+  logic [7:0] udp_din;
+  logic       udp_vin;
+  
+  logic [7:0] ram_a_dl;
+
+  // Configure local ip and port
+  assign tcp_loc_port       = TCP_LOCAL_PORT;
+  assign tcp_rem_port       = TCP_REMOTE_PORT;
+  assign tcp_listen         = 0;
+
+  assign led[0] = ~tcp_status_connected;
+  assign led[1] = ~tcp_status_wait_dns;
+  assign led[2] = ~tcp_status_connecting;
+  assign led[3] = ~tcp_status_disconnecting;
+
+  parameter int TIMEOUT_STR_LEN = 32;
+  
+  logic [2:0][3:0] msec;
+  logic [1:0][3:0] sec ;
+  logic [1:0][3:0] min ;
+  logic [1:0][3:0] hour;
+  logic [1:0][3:0] day ;
+
+  clock clock_inst (
+    .clk  (clk_125m ),
+    .rst  (!tcp_status_connected),
+
+    .msec (msec),
+    .sec  (sec ),
+    .min  (min ),
+    .hour (hour),
+    .day  (day )
+  );
+  
+  logic [TIMEOUT_STR_LEN-1:0][7:0] str;
+  
+  logic [7:0] cur_sym;
+
+  always_ff @ (posedge clk_125m) begin
+    if (tcp_val_out && tcp_dat_out == "x") begin
+      case (cur_sym)
+        124 : cur_sym <= 047;
+        047 : cur_sym <= 045;
+        045 : cur_sym <= 092;
+        092 : cur_sym <= 124;
+      endcase
+    end
+  end
+
+  ////////////////////////////////
+  // Remote TCP server hostname //
+  ////////////////////////////////
+  
+  hostname_t tcp_hostname;
+
+  assign tcp_hostname.str[0 ] = 8'h03;
+  assign tcp_hostname.str[1 ] = "g";
+  assign tcp_hostname.str[2 ] = "i";
+  assign tcp_hostname.str[3 ] = "t";
+  assign tcp_hostname.str[4 ] = 8'h04;
+  assign tcp_hostname.str[5 ] = "q";
+  assign tcp_hostname.str[6 ] = "n";
+  assign tcp_hostname.str[7 ] = "i";
+  assign tcp_hostname.str[8 ] = "g";
+  assign tcp_hostname.str[9 ] = 8'h02;
+  assign tcp_hostname.str[10] = "m";
+  assign tcp_hostname.str[11] = "a";
+  assign tcp_hostname.lng = 12;
+  // Reply string
+  assign str[0]  = "C";
+  assign str[1]  = "o";
+  assign str[2]  = "n";
+  assign str[3]  = "n";
+  assign str[4]  = "e";
+  assign str[5]  = "c";
+  assign str[6]  = "t";
+  assign str[7]  = "e";
+  assign str[8]  = "d";
+  assign str[9]  = "<";
+  assign str[10] = cur_sym;
+  assign str[11] = ">";
+  assign str[12] = hex2ascii(day[1]);
+  assign str[13] = hex2ascii(day[0]);
+  assign str[14] = "d";
+  assign str[15] = hex2ascii(hour[1]);
+  assign str[16] = hex2ascii(hour[0]);
+  assign str[17] = "h";
+  assign str[18] = "-";
+  assign str[19] = hex2ascii(min[1]);
+  assign str[20] = hex2ascii(min[0]);
+  assign str[21] = "m";
+  assign str[22] = "-";
+  assign str[23] = hex2ascii(sec[1]);
+  assign str[24] = hex2ascii(sec[0]);
+  assign str[25] = "s";
+  assign str[26] = "-";
+  assign str[27] = hex2ascii(msec[2]);
+  assign str[28] = hex2ascii(msec[1]);
+  assign str[29] = hex2ascii(msec[0]);
+  assign str[30] = "m";
+  assign str[31] = "s";
+  
+  // // Increment timeout when not in idle
+  // logic [$clog2(TIMEOUT_STR_LEN)-1:0] timeout_str_idx;
+
+  // enum logic [4:0] {
+  //   IDLE,
+  //   STRING
+  // } state;
+
+  // always @ (posedge clk_125m) begin
+  //   if (rst) begin
+  //     state <= IDLE;
+  //   end
+  //   else begin
+  //     case (state)
+  //       IDLE : begin
+  //         if (tcp_val_out && (tcp_dat_out == "x")) state <= STRING;
+  //         timeout_str_idx <= 0;
+  //         tcp_val_in <= 0;
+  //       end
+  //       STRING : begin
+  //         tcp_val_in <= tcp_cts_in;
+  //         tcp_dat_in <= str[timeout_str_idx];
+  //         timeout_str_idx <= timeout_str_idx + 1;
+  //         if (timeout_str_idx == TIMEOUT_STR_LEN-1) state <= IDLE;
+  //       end
+  //     endcase
+  //   end
+  // end
+
+  logic [31:0] ctr_connect;
+	
+  always_ff @ (posedge clk_125m) ctr_connect <= (ctr_connect == 125000000) ? 0 : ctr_connect + 1;
+  always_ff @ (posedge clk_125m) tcp_connect <= (ctr_connect == 125000000);
+
+  ///////////////////
+  // RGMII DDR I/O //
+  ///////////////////
+
+  rgmii_adapter #(
+    .VENDOR       ("INTEL"),
+    .FAMILY       ("CYCLONE 10 LP"),
+    .USE_RX_PLL   ("FALSE"),
+    .USE_TX_PLL   ("TRUE")
+  ) rgmii_adapter_inst (
+    .arst          (arst),          // in
+    .gen_clk       (gen_clk_125m),
+    .clk           (clk_125m),
+
+    .rgmii_rx_clk  (rgmii_rx_clk),  // in
+    .rgmii_rx_dat  (rgmii_rx_dat),  // in
+    .rgmii_rx_ctl  (rgmii_rx_ctl),  // in
+
+    .rgmii_gtx_clk (rgmii_gtx_clk), // out
+    .rgmii_tx_dat  (rgmii_tx_dat),  // out
+    .rgmii_tx_ctl  (rgmii_tx_ctl),  // out
+
+    .gmii_rx_clk   (phy_rx_clk), // out
+    .gmii_rx_rst   (), // out
+    .gmii_rx_dat   (phy_rx_dat), // out
+    .gmii_rx_val   (phy_rx_val), // out
+    .gmii_rx_err   (phy_rx_err), // out
+
+    .gmii_tx_dat   (phy_tx_dat), // in
+    .gmii_tx_val   (phy_tx_val), // in
+    .gmii_tx_err   (phy_tx_err),  // in
+    .gmii_tx_rst   (rst)         // out
+  );
+
+  ///////////
+  // Stack //
+  ///////////
+
+  qnigma #(
+    .MAC_ADDR ({8'ha4, 8'hed, 8'h40, 8'h30, 8'h12, 8'h34})
+  )
+  dut (
+    .clk                      (clk_125m                 ),
+    .rst                      (rst                      ),
+    .phy_rx_clk               (phy_rx_clk               ),
+    .phy_rx_err               (phy_rx_err               ),
+    .phy_rx_val               (phy_rx_val               ),
+    .phy_rx_dat               (phy_rx_dat               ),  
+    .phy_tx_clk               (phy_tx_clk               ),
+    .phy_tx_err               (phy_tx_err               ),
+    .phy_tx_val               (phy_tx_val               ),
+    .phy_tx_dat               (phy_tx_dat               ),
+    .tcp_dat_in               (tcp_dat_in               ),
+    .tcp_val_in               (tcp_val_in               ),
+    .tcp_cts_in               (tcp_cts_in               ),
+    .tcp_frc_in               (tcp_frc_in               ),
+    .tcp_dat_out              (tcp_dat_out              ),
+    .tcp_val_out              (tcp_val_out              ),
+    .tcp_rem_ip               (tcp_rem_ip               ),
+    .tcp_rem_port             (tcp_rem_port             ),
+    .tcp_loc_port             (tcp_loc_port             ),
+    .tcp_hostname             (tcp_hostname             ),
+    .tcp_connect_name         (tcp_connect              ),
+    .tcp_connect_addr         (tcp_connect_addr         ),
+    .tcp_disconnect           (tcp_disconnect           ),  
+    .tcp_listen               (tcp_listen               ),
+    .tcp_con_ip               (tcp_con_ip               ),
+    .tcp_con_port             (tcp_con_port             ),
+    .tcp_status_idle          (tcp_status_idle          ),
+    .tcp_status_wait_dns      (tcp_status_wait_dns      ),
+    .tcp_status_listening     (tcp_status_listening     ),
+    .tcp_status_connecting    (tcp_status_connecting    ),
+    .tcp_status_connected     (tcp_status_connected     ),
+    .tcp_status_disconnecting (tcp_status_disconnecting ),
+    .udp_len                  (udp_len                  ),
+    .udp_din                  (udp_din                  ),
+    .udp_vin                  (udp_vin                  ),
+    .udp_cts                  (udp_cts                  ),
+    .udp_dout                 (udp_dout                 ),
+    .udp_vout                 (udp_vout                 ),
+    .udp_loc_port             (udp_loc_port             ),
+    .udp_ip_rx                (udp_ip_rx                ),
+    .udp_rem_port_rx          (udp_rem_port_rx          ),
+    .udp_ip_tx                (udp_ip_tx                ),
+    .udp_rem_port             (udp_rem_port             )
+  );
+  
+  qnigma_alu alu_inst (
+    .clk            (clk_125m           ),
+    .rst            (rst           ),
+    .task_info       (task_info      ),
+    .task_valid (task_valid),
+    .task_done  (task_done ),
+    .alu_eql        (alu_eql       ),
+
+    .ext_wr_dat     (ext_wr_dat    ),
+    .ext_wr_ptr     (ext_wr_ptr    ),
+    .ext_wr_val     (ext_wr_val    ),
+    .ext_wr_sof     (ext_wr_sof    ),
+    .ext_rd_fld     (ext_rd_fld    ),
+    .ext_rd_req     (ext_rd_req    ),
+    .ext_rd_nxt     (ext_rd_nxt    ),
+    .ext_rd_ptr     (ext_rd_ptr    ),
+    .ext_rd_dat     (ext_rd_dat    ),
+    .ext_rd_val     (ext_rd_val    )
+  );
+
+  wrd_t ext_wr_dat;
+  ptr_t ext_wr_ptr;
+  logic ext_wr_val;
+  logic ext_wr_sof;
+
+  fld_t ext_rd_fld;
+  logic ext_rd_req;
+  logic ext_rd_nxt;
+  ptr_t ext_rd_ptr;
+  wrd_t ext_rd_dat;
+  logic ext_rd_val;
+
+  logic ready_prev;
+  logic rst;
+  logic udp_cts;
+  logic udp_vout;
+  logic [7:0] udp_dout;
+
+  logic [63:0][3:0] cur_x_reg;
+  logic [63:0][3:0] cur_y_reg;
+
+  enum logic [2:0] {
+    IDLE,
+    LOAD_OPA,
+    LOAD_OPB,
+    RUN,
+    READ_RES
+  } state;
+
+  parameter ptr_t ADDR_OPA = ADDR_ADD_ADJ + LEN_RAM_ECP;
+  parameter ptr_t ADDR_OPB = ADDR_OPA + LEN_RAM_ECP;
+  parameter ptr_t ADDR_RES = ADDR_OPB + LEN_RAM_ECP;
+  task_t task_info;
+  len_t load_ctr_a;
+  len_t load_ctr_b;
+  len_t read_ctr;
+
+  always_ff @ (posedge clk_125m) begin
+    if (rst) begin
+      state   <= IDLE;
+    end
+    else begin
+      case (state)
+        IDLE : begin
+          tcp_val_in        <= 0;
+          reading           <= 0;
+          task_info.pri      <= F25519;
+          task_info.rd_ptr_a <= ADDR_OPA;
+          task_info.rd_ptr_b <= ADDR_OPB;
+          task_info.wr_ptr   <= ADDR_RES;
+          if (tcp_val_out) begin
+            if (tcp_dat_out == "x") state <= LOAD_OPA;
+            if (tcp_dat_out == "y") state <= LOAD_OPB;
+            if (tcp_dat_out == "m") begin state <= RUN; task_info.op_typ = mul; task_valid <= 1;end
+            if (tcp_dat_out == "a") begin state <= RUN; task_info.op_typ = add; task_valid <= 1;end
+            if (tcp_dat_out == "s") begin state <= RUN; task_info.op_typ = sub; task_valid <= 1;end
+            ext_wr_val <= 0;
+          end
+        end
+        LOAD_OPA : begin
+          ext_wr_ptr <= ADDR_OPA;
+          if (tcp_val_out) begin
+            load_ctr_a <= load_ctr_a + 1;
+            ext_wr_dat <= {ext_wr_dat[ALU_RAM_WIDTH-5:0], ascii2hex(tcp_dat_out)};
+            ext_wr_val <= load_ctr_a[2:0] == 3'b111;
+          end
+          else 
+            ext_wr_val <= 0;
+          task_valid <= 0;
+          ext_wr_sof <= load_ctr_a == 0;
+          if (load_ctr_a == 64) state <= IDLE;
+        end
+        LOAD_OPB : begin
+          ext_wr_ptr <= ADDR_OPB;
+          if (tcp_val_out) begin
+            load_ctr_b <= load_ctr_b + 1;
+            ext_wr_dat <= {ext_wr_dat[ALU_RAM_WIDTH-5:0], ascii2hex(tcp_dat_out)};
+            ext_wr_val <= load_ctr_b[2:0] == 3'b111;
+          end
+          else 
+            ext_wr_val <= 0;
+          task_valid <= 0;
+          ext_wr_sof <= load_ctr_b == 0;
+          if (load_ctr_b == 64) state <= IDLE;
+        end
+        RUN : begin
+          ext_wr_val <= 0;
+          task_valid <= 0;
+          if (task_done) state <= READ_RES;
+        end
+        READ_RES : begin
+          ext_rd_ptr <= ADDR_RES;
+          read_ctr   <= read_ctr + 1;
+          cur_read_idx <= read_ctr[2:0];
+          if (tcp_cts_in && read_ctr[2:0] == 3'b0) begin
+            ext_rd_req <= 1;
+            ext_rd_nxt <= ~reading;
+            reading <= 1; 
+          end
+          else begin
+            ext_rd_req <= 0;
+            ext_rd_nxt <= 0;
+          end
+          tcp_dat_in <= cur_tx_word[read_ctr];
+          tcp_val_in <= reading;
+          if (read_ctr == 64) begin
+            state <= IDLE;
+          end
+        end
+        default :;
+      endcase
+    end
+  end
+  logic [2:0] cur_read_idx;
+  logic reading;
+
+  logic [7:0][3:0] cur_tx_word;
+
+  assign cur_tx_word = ext_rd_dat;
+
+endmodule
+
+module clock (
+  input logic clk,
+  input logic rst,
+  
+  output logic [2:0][3:0] msec,
+  output logic [1:0][3:0] sec ,
+  output logic [1:0][3:0] min ,
+  output logic [1:0][3:0] hour,
+  output logic [1:0][3:0] day
+);
+  
+  parameter TICKS_MS = 125000;
+
+  logic [$clog2(TICKS_MS)-1:0] ctr_ms;
+
+  logic tck_ms;
+  logic tck_ms0;
+  logic tck_ms1;
+  logic tck_ms2;
+  logic tck_s0;
+  logic tck_s1;
+  logic tck_m0;
+  logic tck_m1;
+  logic tck_h0;
+  logic tck_h1;
+  logic tck_d0;
+
+  always_ff @ (posedge clk) ctr_ms <= ctr_ms == (TICKS_MS-1) ? 0 : ctr_ms + 1;
+  always_ff @ (posedge clk) tck_ms <= ctr_ms == (TICKS_MS-1);
+  
+  ctr #(10) ctr_ms0 (.c (clk), .r (rst), .i (tck_ms ), .o (tck_ms0), .d (msec[0]));
+  ctr #(10) ctr_ms1 (.c (clk), .r (rst), .i (tck_ms0), .o (tck_ms1), .d (msec[1]));
+  ctr #(10) ctr_ms2 (.c (clk), .r (rst), .i (tck_ms1), .o (tck_ms2), .d (msec[2]));
+  ctr #(10) ctr_s0  (.c (clk), .r (rst), .i (tck_ms2), .o (tck_s0 ), .d (sec [0]));
+  ctr #(6 ) ctr_s1  (.c (clk), .r (rst), .i (tck_s0 ), .o (tck_s1 ), .d (sec [1]));
+  ctr #(10) ctr_m0  (.c (clk), .r (rst), .i (tck_s1 ), .o (tck_m0 ), .d (min [0]));
+  ctr #(6 ) ctr_m1  (.c (clk), .r (rst), .i (tck_m0 ), .o (tck_m1 ), .d (min [1]));
+  ctr #(10) ctr_h0  (.c (clk), .r (rst), .i (tck_m1 ), .o (tck_h0 ), .d (hour[0]));
+  ctr #(6 ) ctr_h1  (.c (clk), .r (rst), .i (tck_h0 ), .o (tck_h1 ), .d (hour[1]));
+  ctr #(10) ctr_d0  (.c (clk), .r (rst), .i (tck_h1 ), .o (tck_d0 ), .d (day [0]));
+  ctr #(10) ctr_d1  (.c (clk), .r (rst), .i (tck_d0 ), .o (tck_d1 ), .d (day [1]));
+
+endmodule
+
+module ctr #(
+  parameter [3:0] OVF = 10
+)(
+    input  logic       c,
+    input  logic       r,
+    input  logic       i,
+    output logic       o,
+    output logic [3:0] d
+);
+
+  always_ff @ (posedge c) if (r) d <= 0; else if (i) d <= (d == OVF-1) ? 0 : d + 1;
+
+  assign o = i & (d == OVF-1); 
+
+endmodule
