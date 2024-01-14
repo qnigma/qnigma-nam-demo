@@ -1,7 +1,7 @@
 # qnigma-hw-c10lp-ek
 This is a TCP/IP and Modular Multiplication Unit demo for a [Intel Cyclone 10 LP Evaluation Kit](https://www.intel.com/content/www/us/en/products/details/fpga/development-kits/cyclone/10-lp-evaluation-kit.html).
 ## What it does?
-The repo allows to quickly generate FPGA firmware bitstream built based on [qnigma-rtl](https://github.com/qnigma/qnigma-rtl.git). This is a proof-of-concept design a TCP/IP network-attached multiplier (NAM) modulo curve25519 prime (2^255-19). Networking together with modular arithmetic unit are key modules that compose a hardware SSH implementation. Documentation on main RTL can be found in the project [wiki](https://github.com/qnigma/qnigma-nam-demo/wiki). **Under Development**
+The repo allows to quickly generate FPGA firmware bitstream based on [qnigma-rtl](https://github.com/qnigma/qnigma-rtl.git). This is a proof-of-concept design a TCP/IP network-attached multiplier (NAM) modulo curve25519 prime (2^255-19). Networking together with modular arithmetic unit are key modules that compose a hardware SSH implementation. Documentation on main RTL can be found in the project [wiki](https://github.com/qnigma/qnigma-nam-demo/wiki). **Under Development**
 
 ## Quick Start
 
